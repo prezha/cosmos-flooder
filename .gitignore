@@ -4,6 +4,10 @@
 *.dll
 *.so
 *.dylib
+out/
+cosmos-flooder
+*.tar.gz
+*.tgz
 
 # Test binary, built with `go test -c`
 *.test
@@ -12,4 +16,8 @@
 *.out
 
 # Dependency directories (remove the comment below to include it)
-# vendor/
+vendor/
+
+cudos-data/
+logs/
+data/
