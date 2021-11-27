@@ -29,7 +29,6 @@ type job struct {
 	id       string
 	flags    flags
 	deadline time.Time
-	stop     bool
 }
 
 // execute will try to run job
@@ -47,7 +46,6 @@ func (j *job) execute() error {
 	if j.flags.sender == nil && len(endpoints) > 0 {
 		i := rand.Intn(len(endpoints))
 		j.flags.sender = endpoints[i]
-		// time.Sleep(100 * time.Millisecond) // wait for selected sender's account to stabilise/sync
 	}
 	j.flags.sender.lock()
 	defer j.flags.sender.unlock()
@@ -100,10 +98,6 @@ func spawn(flags flags) {
 			defer wg.Done()
 
 			for j := range jobs {
-				if j.stop {
-					close(jobs)
-					return
-				}
 				j.id = fmt.Sprintf("%s.%s", j.id, strconv.Itoa(i)) // amend job id with worker id
 				if err := j.execute(); err != nil {
 					fmt.Printf("%v\n", err)
@@ -115,8 +109,8 @@ func spawn(flags flags) {
 	for i := 0; i < requests; i++ {
 		id := fmt.Sprintf("%s-%s", testId, strconv.Itoa(i))
 		flags.note = id
-		jobs <- job{id, flags, deadline, false}
+		jobs <- job{id, flags, deadline}
 	}
-	jobs <- job{stop: true} // signal end of jobs queue for channel to close and stop workers
+	close(jobs) // signal end of jobs queue to stop workers when done processing
 	wg.Wait()
 }

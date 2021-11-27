@@ -104,10 +104,10 @@ func (f *flags) hydrate() string {
 	return h
 }
 
-// run executes cmd (command with flags), piping in if given, and returns output or error
+// run executes cmd (command with flags), piping in stdin if given, and returns output, runtime duration and any error
 // cmd alias (eg, 'alias simd='docker exec -i simd-binary simd') executes in subshell
 // do not quote (single nor double) flags' values! - this is handled by [sub]shell
-func run(cmd string, in string) (out []byte, duration time.Duration, err error) {
+func run(cmd string, pipein ...string) (out []byte, duration time.Duration, err error) {
 	start := time.Now()
 
 	bin := strings.Split(cmd, " ")[0]
@@ -122,18 +122,19 @@ func run(cmd string, in string) (out []byte, duration time.Duration, err error) 
 		c = exec.Command(bin, args...)
 	}
 
-	// pipe in
-	if in != "" {
-		if !strings.HasSuffix(in, "\n") {
-			in += "\n"
-		}
+	if pipein != nil {
 		var stdin io.WriteCloser
 		if stdin, err = c.StdinPipe(); err != nil {
 			return nil, time.Since(start), fmt.Errorf("failed to get StdinPipe for %s: %v", c.String(), err)
 		}
 		go func() {
 			defer stdin.Close()
-			io.WriteString(stdin, in)
+			for _, i := range pipein {
+				if i != "" {
+					i += "\n" // add <enter> to complete input
+					io.WriteString(stdin, i)
+				}
+			}
 		}()
 	}
 
@@ -148,8 +149,8 @@ func run(cmd string, in string) (out []byte, duration time.Duration, err error) 
 // trimerr extracts error line from err starting with "Error: " ignoring everything else (eg, command's help output)
 func trimerr(err error) error {
 	if err != nil {
-		re := regexp.MustCompile("Error: (.*)\n")
-		if m := re.FindStringSubmatch(err.Error()); len(m) > 0 {
+		re := regexp.MustCompile("(?s)(.*)\nUsage:")
+		if m := re.FindStringSubmatch(err.Error()); m != nil {
 			return errors.New(m[1])
 		}
 	}

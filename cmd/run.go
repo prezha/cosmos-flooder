@@ -37,9 +37,8 @@ var (
 	chainId string // --chain-id string: The network chain ID
 
 	// same keyring backend/passphrase combo is used for all accounts (both sponsor and enpoints)
-	// currently, only "test" keyring backend is supported
-	keyringBackend    = "test" // --keyring-backend string: Select keyring's backend (os|file|kwallet|pass|test|memory) (default "test")
-	keyringPassphrase = ""     // keyring passphrase to pipe to cmd
+	keyringBackend    string // --keyring-backend string: Select keyring's backend (os|file|kwallet|pass|test|memory) (default "test")
+	keyringPassphrase string // keyring passphrase to pipe to cmd
 
 	sponsor   *account             // account used to create endpoints with balance
 	endpoints = map[int]*account{} // senders' and receivers' accounts
@@ -68,12 +67,15 @@ func init() {
 
 	runCmd.Flags().StringVarP(&chainId, "chain", "c", "cudos-testnet-public", "cosmos network chain id")
 
+	runCmd.Flags().StringVar(&keyringBackend, "keyring-backend", "test", "keyring's backend (os|file|kwallet|pass|test|memory)")
+	runCmd.Flags().StringVar(&keyringPassphrase, "keyring-passphrase", "", "keyring's passphrase")
+
 	runCmd.Flags().IntVarP(&workers, "workers", "w", 10, "maximum number of concurrent workers")
 	runCmd.Flags().IntVarP(&requests, "requests", "r", 1000, "total number of requests")
 	runCmd.Flags().DurationVarP(&duration, "duration", "d", 1*time.Hour, "total time over which all jobs should be executed")
 
 	runCmd.Flags().IntVarP(&numeps, "endpoints", "e", 100, "number of endpoints (local addresses) to use or generate")
-	runCmd.Flags().StringVarP(&prefix, "prefix", "p", "flooder-", "endpoints' local account name prefix")
+	runCmd.Flags().StringVarP(&prefix, "prefix", "p", "flooder", "endpoints' local account name prefix")
 	runCmd.Flags().StringVarP(&sourcer, "sourcer", "s", "", "local address with resources to create endpoints with balance")
 	runCmd.Flags().StringVarP(&balance, "balance", "b", "1000000000acudos", "balance for new accounts; 1 cudos = 1 000 000 000 000 000 000 acudos")
 

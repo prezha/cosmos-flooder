@@ -43,7 +43,7 @@ func (a *account) unlock() {
 
 // add adds amount from sponsor referencing note within 10 seconds (timeout)
 func (a *account) add(amount string, sponsor *account, note string) error {
-	job := job{"topup", flags{sponsor, a.address, amount, fees, gas, note, chainId, "", broadcastMode, keyringBackend, "", sponsor.sequence, ""}, time.Now().Add(10 * time.Second), false}
+	job := job{"topup", flags{sponsor, a.address, amount, fees, gas, note, chainId, "", broadcastMode, keyringBackend, "", sponsor.sequence, ""}, time.Now().Add(10 * time.Second)}
 	return job.execute()
 }
 
@@ -66,7 +66,7 @@ func load(qty int, prefix string) (map[int]*account, error) {
 		if len(acc) > 1 {
 			name := strings.TrimSpace(strings.Split(string(acc), string('\t'))[0])
 			if strings.HasPrefix(name, prefix) {
-				if n := strings.Split(name, prefix); len(n) > 1 {
+				if n := strings.Split(name, prefix+"-"); len(n) > 1 {
 					ord, err := strconv.Atoi(n[1])
 					if err != nil {
 						return nil, fmt.Errorf("parsing index: %v", err)
@@ -102,25 +102,24 @@ func charge(qty int, prefix string, balance string, sponsor *account, endpoints 
 			return nil, err
 		}
 		endpoints[i] = acc
-		// time.Sleep(100 * time.Millisecond) // prevent overloading
 	}
 	return endpoints, nil
 }
 
-// newAccount returns address of newly created account initialised with name ("prefix-index")
+// newAccount returns address of newly created account initialised with name ("<prefix>-<index>")
 // in case that the account with the same name exists, if will be replaced with new one
 func newAccount(prefix string, index int) (acc *account, err error) {
-	name := fmt.Sprintf("%s%03d", prefix, index)
+	name := fmt.Sprintf("%s-%03d", prefix, index)
 
 	var out []byte
 
 	// create new account
-	if out, _, err = run(fmt.Sprintf("%s keys add %s --keyring-backend %s --output json", bin, name, keyringBackend), "y"); err != nil { // TODO: add support for keyringPassphrase for non-"test" keyringBackend?
-		return nil, err
+	if out, _, err = run(fmt.Sprintf("%s keys add %s --keyring-backend %s --output json", bin, name, keyringBackend), []string{keyringPassphrase, "y"}...); err != nil {
+		return nil, trimerr(err)
 	}
 	// make sure '[.address,.mnemonic]|@tsv' is tied together as one argument!
 	if out, _, err = run("jq -r [.address,.mnemonic]|@tsv", string(out)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s - %v", out, err)
 	}
 
 	if len(out) > 1 {
@@ -136,7 +135,7 @@ func newAccount(prefix string, index int) (acc *account, err error) {
 func sequenceFromBC(address string, lcdNode string) (sequence uint, err error) {
 	var seq int
 	var out, out2 []byte
-	if out, _, err = run(fmt.Sprintf("curl -sS http://%s/cosmos/auth/v1beta1/accounts/%s", lcdNode, address), ""); err != nil {
+	if out, _, err = run(fmt.Sprintf("curl -sS http://%s/cosmos/auth/v1beta1/accounts/%s", lcdNode, address)); err != nil {
 		return 0, err
 	}
 	if out2, _, err = run("jq -r .account.sequence", string(out)); err != nil {
