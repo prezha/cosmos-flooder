@@ -21,7 +21,9 @@ import (
 	"math/rand"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -77,18 +79,12 @@ func (j *job) execute() error {
 		j.flags.sender.sequence = uint(seq) + 1 // automatically set sender's account sequence on successful job completion for next run
 		return nil
 	}
-	return fmt.Errorf("%s job timed out after %s (retries: %d): %v", j.id, time.Since(start), retries, trimerr(err))
+	// note: presence of "job timed out" substring is checked in spawn()
+	return fmt.Errorf("%s job timed out (retries: %d): %v", j.id, retries, trimerr(err))
 }
 
 func spawn(flags flags) {
-	// delay := time.Duration(b.duration.Nanoseconds() / int64(b.qty))
-
-	deadline := time.Now().Add(duration)
-
-	if requests < workers { // don't spawn more workers than jobs needed
-		workers = requests
-	}
-	jobs := make(chan job, workers)
+	jobs := make(chan job, requests)
 
 	var wg sync.WaitGroup
 	// spawn all workers
@@ -98,18 +94,31 @@ func spawn(flags flags) {
 			defer wg.Done()
 
 			for j := range jobs {
-				j.id = fmt.Sprintf("%s.%s", j.id, strconv.Itoa(i)) // amend job id with worker id
+				j.id = fmt.Sprintf("%s.%d", j.id, i) // amend job id with worker id
 				if err := j.execute(); err != nil {
 					fmt.Printf("%v\n", err)
+					if strings.Contains(err.Error(), "job timed out") {
+						return
+					}
+					continue
 				}
+				atomic.AddInt64(&finished, 1)
 			}
 		}(i)
 	}
-	// send all jobs to channel, signal the end and wait for completion
+
+	// send all jobs to channel, then signal the end and wait for completion, limiting overall execution time with deadline based on duration.
+	// if spread flag was set - try to also have near-evenly distribution of given number of jobs over requested duration, effectively rate-limiting itself.
+	deadline := time.Now().Add(duration)
+	delay := time.Duration(duration.Nanoseconds() / int64(requests))
+	if !spread || delay < time.Millisecond {
+		delay = 0
+	}
 	for i := 0; i < requests; i++ {
-		id := fmt.Sprintf("%s-%s", testId, strconv.Itoa(i))
+		id := fmt.Sprintf("%s-%d", testId, i)
 		flags.note = id
 		jobs <- job{id, flags, deadline}
+		time.Sleep(delay)
 	}
 	close(jobs) // signal end of jobs queue to stop workers when done processing
 	wg.Wait()

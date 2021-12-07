@@ -29,8 +29,10 @@ var (
 	testId string
 
 	workers  int           // maximum number of concurrent workers
-	requests int           // total number of requests
+	requests int           // target number of requests (ie, transactions admitted to mempool)
+	finished int64         // actual number of requests completed
 	duration time.Duration // total time over which all jobs should be executed
+	spread   bool          // load (instead of default stress-test) mode with rate-limited near-evenly distribution of requests over time duration
 
 	bin     string // specific main binary to use
 	subcmd  string // specific binary subcommand to execute
@@ -71,8 +73,9 @@ func init() {
 	runCmd.Flags().StringVar(&keyringPassphrase, "keyring-passphrase", "", "keyring's passphrase")
 
 	runCmd.Flags().IntVarP(&workers, "workers", "w", 10, "maximum number of concurrent workers")
-	runCmd.Flags().IntVarP(&requests, "requests", "r", 1000, "total number of requests")
+	runCmd.Flags().IntVarP(&requests, "requests", "r", 1000, "target number of requests (ie, transactions admitted to mempool)")
 	runCmd.Flags().DurationVarP(&duration, "duration", "d", 1*time.Hour, "total time over which all jobs should be executed")
+	runCmd.Flags().BoolVar(&spread, "spread", false, "load (instead of default stress-test) mode with rate-limited near-evenly distribution of requests over time duration")
 
 	runCmd.Flags().IntVarP(&numeps, "endpoints", "e", 100, "number of endpoints (local addresses) to use or generate")
 	runCmd.Flags().StringVarP(&prefix, "prefix", "p", "flooder", "endpoints' local account name prefix")
@@ -99,6 +102,14 @@ run cosmos network load and stress test
 	Run: func(cmd *cobra.Command, args []string) {
 		subcmd = bin + " tx bank send"
 		rand.Seed(time.Now().UnixNano())
+
+		// sanitise flag values
+		if workers > requests { // don't use more workers than requests
+			workers = requests
+		}
+		if numeps > workers { // don't use more addresses than workers
+			numeps = workers
+		}
 
 		fmt.Println("loading local accounts...")
 		var err error
@@ -141,6 +152,6 @@ run cosmos network load and stress test
 		start := time.Now()
 		fmt.Printf("starting test %s...\n", testId)
 		spawn(flags{nil, "", amount, fees, gas, testId, chainId, "", broadcastMode, keyringBackend, "", 0, ""})
-		fmt.Printf("%s test completed: %d transactions in %s (%d tx/s)\n", testId, requests, time.Since(start), requests/int(time.Since(start).Seconds()))
+		fmt.Printf("%s test completed: %d/%d transactions finished in %s (%.1f tx/s)\n", testId, finished, requests, time.Since(start), float64(finished)/time.Since(start).Seconds())
 	},
 }
