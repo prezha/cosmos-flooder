@@ -55,7 +55,7 @@ func load(qty int, prefix string) (map[int]*account, error) {
 		return nil, trimerr(err)
 	}
 	// make sure '.[]|.name,"\t",.address,"\n"' is tied together as one argument!
-	if out2, _, err = run(`jq -j .[]|.name,"\t",.address,"\n"`, string(out)); err != nil {
+	if out2, _, err = run(`jq --exit-status --join-output .[]|.name,"\t",.address,"\n"`, string(out)); err != nil {
 		return nil, fmt.Errorf("parsing %s: %v", out, err)
 	}
 
@@ -118,7 +118,7 @@ func newAccount(prefix string, index int) (acc *account, err error) {
 		return nil, trimerr(err)
 	}
 	// make sure '[.address,.mnemonic]|@tsv' is tied together as one argument!
-	if out, _, err = run("jq -r [.address,.mnemonic]|@tsv", string(out)); err != nil {
+	if out, _, err = run("jq --exit-status --raw-output [.address,.mnemonic]|@tsv", string(out)); err != nil {
 		return nil, fmt.Errorf("%s - %v", out, err)
 	}
 
@@ -138,7 +138,7 @@ func sequenceFromBC(address string, lcdNode string) (sequence uint, err error) {
 	if out, _, err = run(fmt.Sprintf("curl -sS http://%s/cosmos/auth/v1beta1/accounts/%s", lcdNode, address)); err != nil {
 		return 0, err
 	}
-	if out2, _, err = run("jq -r .account.sequence", string(out)); err != nil {
+	if out2, _, err = run("jq --exit-status --raw-output .account.sequence", string(out)); err != nil {
 		return 0, fmt.Errorf("parsing sequence %s: %v", out, err)
 	}
 	if seq, err = strconv.Atoi(strings.TrimSpace(string(out2))); err != nil {

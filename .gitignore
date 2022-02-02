@@ -6,8 +6,6 @@
 *.dylib
 out/
 cosmos-flooder
-*.tar.gz
-*.tgz
 
 # Test binary, built with `go test -c`
 *.test
@@ -19,5 +17,7 @@ cosmos-flooder
 vendor/
 
 cudos-data/
-logs/
 data/
+*.log
+*.tgz
+*.tar.gz
